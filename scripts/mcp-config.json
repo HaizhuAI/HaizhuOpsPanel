@@ -1,0 +1,44 @@
+{
+  "//": "HaizhuOpsPanel MCP 服务器客户端接入示例 —— 把本文件内容按所用客户端的配置格式粘贴调整",
+  "//": "路径请替换为你本机的实际项目路径，Windows 路径使用双反斜杠或正斜杠",
+
+  "claude_desktop": {
+    "mcpServers": {
+      "haizhu-opspanel": {
+        "command": "node",
+        "args": ["C:/path/to/HaizhuOpsPanel/server/mcp-server.js"],
+        "env": {
+          "MCP_ALLOW_RAW_COMMAND": "0"
+        }
+      }
+    }
+  },
+
+  "cursor": {
+    "mcpServers": {
+      "haizhu-opspanel": {
+        "command": "node",
+        "args": ["C:/path/to/HaizhuOpsPanel/server/mcp-server.js"]
+      }
+    }
+  },
+
+  "vscode_mcp_json": {
+    "servers": {
+      "haizhu-opspanel": {
+        "type": "stdio",
+        "command": "node",
+        "args": ["C:/path/to/HaizhuOpsPanel/server/mcp-server.js"]
+      }
+    }
+  },
+
+  "workbuddy_mcp_json": {
+    "mcpServers": {
+      "haizhu-opspanel": {
+        "command": "node",
+        "args": ["C:/path/to/HaizhuOpsPanel/server/mcp-server.js"]
+      }
+    }
+  }
+}

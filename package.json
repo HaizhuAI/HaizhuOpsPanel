@@ -1,0 +1,38 @@
+{
+  "name": "haizhu-opspanel",
+  "version": "2.2.0",
+  "private": true,
+  "description": "HaizhuOpsPanel - 企业级可视化服务器运维与 AI 应用部署平台（含 MCP 工具与 AI 运维助手）",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "deploy": "npm run build && wrangler deploy",
+    "start": "next start",
+    "start:legacy": "node server/index.js",
+    "lint": "eslint .",
+    "test": "node --test",
+    "start:mcp": "node server/mcp-server.js",
+    "start:panel": "node server/index.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "lucide-react": "^0.468.0",
+    "next": "^15.1.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "ssh2": "^1.15.0",
+    "ws": "^8.17.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.2.0",
+    "@tailwindcss/postcss": "^4.0.0",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^15.1.3",
+    "tailwindcss": "^4.0.0",
+    "wrangler": "^4.110.0"
+  },
+  "license": "MIT"
+}

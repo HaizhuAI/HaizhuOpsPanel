@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "haizhuopspanel",
+  "compatibility_date": "2026-07-13",
+  "workers_dev": true,
+  "preview_urls": true,
+  "assets": {
+    "directory": "./out",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "routes": [
+    {
+      "pattern": "haizhuopspanel.haizhuai.bond",
+      "custom_domain": true
+    }
+  ]
+}

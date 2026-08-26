@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HaizhuOpsPanel · 企业级可视化远程主机运维平台</title>
+  <meta name="theme-color" content="#ffffff">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='16' fill='%2310b981'/><path d='M18 20h28v8H18zm0 16h18v8H18z' fill='white'/><circle cx='43' cy='40' r='5' fill='white'/></svg>">
+  <link rel="stylesheet" href="css/style.css?v=20260826a">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
+</head>
+<body>
+  <a class="skip-link" href="#content">跳转到主要内容</a>
+  <svg class="svg-sprite" aria-hidden="true">
+    <symbol id="icon-logo" viewBox="0 0 24 24"><path d="M4 5.5h16v5H4zM4 13.5h10v5H4z"/><circle cx="18" cy="16" r="2.5"/></symbol>
+    <symbol id="icon-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="icon-dashboard" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+    <symbol id="icon-server" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01M11 7h6M11 17h6"/></symbol>
+    <symbol id="icon-store" viewBox="0 0 24 24"><path d="M4 9l2-5h12l2 5M5 9v11h14V9M3 9h18M9 20v-6h6v6"/></symbol>
+    <symbol id="icon-tool" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5-5L12 3.6 9.6 6 7.3 3.7a4 4 0 0 0 5 5L20 16.4a2 2 0 1 1-2.8 2.8z"/></symbol>
+    <symbol id="icon-network" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="18" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M10.8 7.2 6.2 15.8M13.2 7.2l4.6 8.6M7.5 18h9"/></symbol>
+    <symbol id="icon-container" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/></symbol>
+    <symbol id="icon-shield" viewBox="0 0 24 24"><path d="M12 3 20 6v5c0 5-3.4 8.3-8 10-4.6-1.7-8-5-8-10V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/></symbol>
+    <symbol id="icon-activity" viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 5 12 2.5-6h4"/></symbol>
+    <symbol id="icon-terminal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></symbol>
+    <symbol id="icon-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 8-8M15 8l2 2M17 6l2 2"/></symbol>
+    <symbol id="icon-logout" viewBox="0 0 24 24"><path d="M10 5H5v14h5M14 8l4 4-4 4M8 12h10"/></symbol>
+    <symbol id="icon-alert" viewBox="0 0 24 24"><path d="M12 3 2.5 20h19zM12 9v4M12 17h.01"/></symbol>
+    <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M18.5 9A7 7 0 0 0 6.2 6.5L4 9M5.5 15A7 7 0 0 0 17.8 17.5L20 15"/></symbol>
+    <symbol id="icon-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7z"/></symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="icon-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  <symbol id="icon-bot" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="11" rx="3"/><circle cx="9" cy="13.5" r="1.6"/><circle cx="15" cy="13.5" r="1.6"/><path d="M12 8V4M8.5 4h7M9 19v2M15 19v2"/></symbol>
+  <symbol id="icon-send" viewBox="0 0 24 24"><path d="M4 12 20 4l-4 16-5-6-7-2z"/></symbol>
+  </svg>
+
+  <!-- ===== 登录页 ===== -->
+  <div id="login-view" class="login-wrap">
+    <div class="login-card">
+      <div class="login-logo"><svg class="brand-mark" aria-hidden="true"><use href="#icon-logo"></use></svg></div>
+      <h1>HaizhuOpsPanel</h1>
+      <p class="login-sub">企业级个人基础设施控制平面</p>
+      <div class="login-trust"><span><i></i> 本地优先</span><span><i></i> 凭据加密</span><span><i></i> 审计留痕</span></div>
+      <form id="login-form" autocomplete="off">
+        <div class="field">
+          <label for="login-username">管理员账号</label>
+          <input type="text" id="login-username" value="admin" autocomplete="username">
+        </div>
+        <div class="field">
+          <label for="login-password">密码</label>
+          <input type="password" id="login-password" placeholder="默认密码 admin123" autocomplete="current-password">
+        </div>
+        <div id="login-error" class="form-error hidden"></div>
+        <button type="submit" class="btn btn-primary btn-block" id="login-btn">进入运维工作台</button>
+      </form>
+      <p class="login-tip">首次使用默认密码 <code>admin123</code>，登录后请立即修改</p>
+    </div>
+  </div>
+
+  <!-- ===== 主界面 ===== -->
+  <div id="app-view" class="app hidden">
+    <!-- 移动端顶栏 -->
+    <header class="mobile-bar">
+      <button class="icon-btn" id="btn-menu" aria-label="打开导航菜单"><svg aria-hidden="true"><use href="#icon-menu"></use></svg></button>
+      <span class="mobile-title"><svg class="brand-mark" aria-hidden="true"><use href="#icon-logo"></use></svg> HaizhuOpsPanel</span>
+      <button class="icon-btn" id="btn-mobile-console" aria-label="打开执行控制台"><svg aria-hidden="true"><use href="#icon-terminal"></use></svg></button>
+    </header>
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <span class="brand-icon"><svg class="brand-mark" aria-hidden="true"><use href="#icon-logo"></use></svg></span>
+        <div>
+          <div class="brand-name">HaizhuOpsPanel</div>
+          <div class="brand-sub">PERSONAL OPS CLOUD</div>
+        </div>
+      </div>
+
+      <div class="host-picker">
+        <label for="host-select"><span>当前运行环境</span><span class="environment-badge">PROD</span></label>
+        <select id="host-select"></select>
+        <div id="host-status" class="host-status"></div>
+      </div>
+
+      <nav id="nav" class="nav"></nav>
+
+      <div class="sidebar-foot">
+        <div class="operator"><span class="operator-avatar">H</span><span><b>admin</b><small>平台管理员</small></span><i title="在线"></i></div>
+        <button class="btn btn-ghost btn-sm" id="btn-change-pass"><svg aria-hidden="true"><use href="#icon-key"></use></svg>修改密码</button>
+        <button class="btn btn-ghost btn-sm" id="btn-logout"><svg aria-hidden="true"><use href="#icon-logout"></use></svg>退出登录</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="workspace-bar">
+        <div class="workspace-copy"><span class="workspace-kicker">HAIZHU OPS CONSOLE</span><strong>欢迎使用 HaizhuOpsPanel 控制台</strong></div>
+        <div class="workspace-status"><span><i class="status-dot"></i>控制平面在线</span><span><svg aria-hidden="true"><use href="#icon-shield"></use></svg>连接已加密</span><span class="workspace-user"><b>HA</b> 晚上好，admin</span></div>
+      </header>
+      <div id="banner-default-pass" class="banner hidden">
+        <svg aria-hidden="true"><use href="#icon-alert"></use></svg><span><b>安全基线提醒</b>：当前仍在使用默认密码，请立即修改管理员凭据。</span>
+      </div>
+      <div id="content" class="content"></div>
+    </main>
+
+    <!-- 输出控制台抽屉 -->
+    <section id="console" class="console collapsed">
+      <header class="console-head" id="console-head">
+        <span class="console-title">
+          <span id="console-spinner" class="spinner hidden"></span>
+          执行控制台 <span id="console-task" class="console-task"></span>
+        </span>
+        <span class="console-actions">
+          <button class="btn btn-sm btn-danger hidden" id="btn-kill">终止任务</button>
+          <button class="btn btn-sm btn-ghost" id="btn-clear">清空</button>
+          <button class="btn btn-sm btn-ghost console-toggle" id="btn-toggle-console" aria-label="展开执行控制台">▲</button>
+        </span>
+      </header>
+      <pre id="console-output" class="console-output"></pre>
+    </section>
+  </div>
+
+  <!-- ===== 通用模态框 ===== -->
+  <div id="modal" class="modal-mask hidden" role="presentation">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <header><span id="modal-title"></span><button class="modal-x" id="modal-close" aria-label="关闭对话框"><svg aria-hidden="true"><use href="#icon-close"></use></svg></button></header>
+      <div id="modal-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <div id="toast-box" class="toast-box" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+  <script src="js/app.js?v=20260826b"></script>
+</body>
+</html>
