@@ -299,15 +299,26 @@ wss.on('connection', (ws, req) => {
 
       // 交互式终端
       else if (msg.type === 'shell-open') {
-        if (shellStream) { try { shellStream.close(); } catch (_) {} }
-        shellStream = await ssh.shell(msg.hostId, { cols: msg.cols, rows: msg.rows });
-        shellStream.on('data', (d) => send({ type: 'shell-data', data: d.toString('utf8') }));
-        shellStream.stderr.on('data', (d) => send({ type: 'shell-data', data: d.toString('utf8') }));
-        shellStream.on('close', () => {
-          shellStream = null;
-          send({ type: 'shell-closed' });
-        });
-        send({ type: 'shell-ready' });
+        const previousStream = shellStream;
+        shellStream = null;
+        if (previousStream) {
+          previousStream.removeAllListeners('close');
+          try { previousStream.close(); } catch (_) {}
+        }
+        try {
+          const nextStream = await ssh.shell(msg.hostId, { cols: msg.cols, rows: msg.rows });
+          shellStream = nextStream;
+          nextStream.on('data', (d) => send({ type: 'shell-data', data: d.toString('utf8') }));
+          nextStream.stderr.on('data', (d) => send({ type: 'shell-data', data: d.toString('utf8') }));
+          nextStream.on('close', () => {
+            if (shellStream !== nextStream) return;
+            shellStream = null;
+            send({ type: 'shell-closed' });
+          });
+          send({ type: 'shell-ready' });
+        } catch (e) {
+          send({ type: 'shell-error', error: e.message });
+        }
       } else if (msg.type === 'shell-input') {
         if (shellStream) shellStream.write(msg.data);
       } else if (msg.type === 'shell-resize') {

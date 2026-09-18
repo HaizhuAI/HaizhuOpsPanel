@@ -185,6 +185,13 @@ function handleWS(msg) {
     case 'shell-data':
       if (state.term) state.term.write(msg.data);
       break;
+    case 'shell-error':
+      state.termOpen = false;
+      state.termConnecting = false;
+      setTerminalStatus('终端连接失败，请点击重新连接');
+      if (state.term) state.term.write(`\r\n\x1b[31m[终端连接失败: ${msg.error}]\x1b[0m\r\n`);
+      toast(msg.error, 'err');
+      break;
     case 'shell-closed':
       state.termOpen = false;
       state.termConnecting = false;
@@ -343,7 +350,7 @@ function renderNav() {
     { sep: '运维操作' },
     ...state.catalog.categories,
     { sep: '高级' },
-    { id: 'terminal', name: '终端 / 自定义命令' },
+    { id: 'terminal', name: '交互式终端' },
   ];
   nav.innerHTML = items.map((it) => it.sep
     ? `<div class="nav-sep">${esc(it.sep)}</div>`
@@ -373,6 +380,8 @@ $('#btn-mobile-console').addEventListener('click', () => {
 });
 
 function switchView(view) {
+  const previousView = state.view;
+  if (previousView === 'terminal' && view !== 'terminal') closeTerminalSession();
   state.view = view;
   document.querySelectorAll('.nav-item').forEach((el) => {
     el.classList.toggle('active', el.dataset.view === view);
@@ -406,6 +415,7 @@ $('#host-select').addEventListener('change', (e) => {
   $('#host-status').className = 'host-status';
   if (state.view === 'dashboard') renderDashboard();
   else if (state.view === 'appstore') renderAppStore();
+  else if (state.view === 'terminal') renderTerminal();
 });
 
 function hostFormHTML(h = {}) {
@@ -1099,6 +1109,17 @@ function renderTerminal() {
   openTerminal();
 }
 
+function closeTerminalSession() {
+  if (state.wsReady && state.ws && state.ws.readyState === WebSocket.OPEN && state.termOpen) {
+    state.ws.send(JSON.stringify({ type: 'shell-close' }));
+  }
+  state.termOpen = false;
+  state.termConnecting = false;
+  if (state.term) { try { state.term.dispose(); } catch (_) {} }
+  state.term = null;
+  state.termFit = null;
+}
+
 function setTerminalStatus(text, ready = false) {
   const el = $('#term-status');
   if (!el) return;
@@ -1139,7 +1160,6 @@ function openTerminal() {
     fontSize: 13,
     cursorBlink: true,
     cursorStyle: 'bar',
-    convertEol: true,
     scrollback: 5000,
     theme: { background: '#050b14', foreground: '#dbe7f3', cursor: '#34d399', selectionBackground: '#1f6f5f80' },
   });

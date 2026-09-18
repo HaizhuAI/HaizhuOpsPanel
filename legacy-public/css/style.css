@@ -602,8 +602,6 @@ code {
 
   /* 终端高度自适应 */
   .term-wrap { height: 60vh; }
-  .term-bar { flex-wrap: wrap; }
-  .term-bar input { flex: 1 1 100%; }
 
   .toast-box { left: 12px; right: 12px; top: 64px; }
   .toast { max-width: none; }
@@ -812,7 +810,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .health-strip span { display: flex; align-items: center; gap: 7px; }
 .health-strip span:nth-child(2) { margin-left: auto; }
 
-.grid, .dash-grid, .host-list, .table-wrap, .panel-heading, .app-toolbar, #appstore-body, .term-bar, .term-wrap, .empty { max-width: 1440px; margin-left: auto; margin-right: auto; }
+.grid, .dash-grid, .host-list, .table-wrap, .panel-heading, .app-toolbar, #appstore-body, .term-toolbar, .term-wrap, .empty { max-width: 1440px; margin-left: auto; margin-right: auto; }
 .grid { grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
 .op-card, .stat-card, .host-row, .info-table, .modal, .login-card {
   box-shadow: none;
@@ -874,9 +872,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .app-sec-title { border-left-color: var(--green); color: #b8c6d5; }
 .app-card { min-height: 220px; }
 
-.term-bar { padding: 12px; border: 1px solid var(--border-soft); border-radius: 10px 10px 0 0; background: #0a1625; margin-bottom: 0; }
-.term-bar input { min-height: 42px; background: #050d18; }
-.term-wrap { height: 520px; border-radius: 0 0 10px 10px; background: #050b14; border-color: var(--border-soft); }
+.term-wrap { height: 520px; border-radius: 10px; background: #050b14; border-color: var(--border-soft); }
 
 .console { left: 272px; height: 310px; background: #050b14; border-color: #24394f; box-shadow: 0 -18px 50px rgba(0,0,0,.28); }
 .console.collapsed { height: 42px; }
@@ -934,7 +930,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .app-btns .btn { flex: 1; }
   .info-table td { min-width: 160px; }
   .info-table td:first-child { min-width: 120px; }
-  .term-bar .btn { flex: 1 1 calc(50% - 6px); }
 }
 
 @media (hover: none) and (pointer: coarse) {
@@ -1216,7 +1211,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .resource-callout h2 { color: #18181b; font-size: 18px; font-weight: 500; }
 .resource-callout p { margin-top: 3px; color: #71717a; font-size: 13px; }
 
-.grid, .dash-grid, .host-list, .table-wrap, .panel-heading, .app-toolbar, #appstore-body, .term-bar, .term-wrap, .empty { max-width: 1320px; }
+.grid, .dash-grid, .host-list, .table-wrap, .panel-heading, .app-toolbar, #appstore-body, .term-toolbar, .term-wrap, .empty { max-width: 1320px; }
 .grid { gap: 14px; }
 .op-card, .stat-card, .host-row, .info-table, .modal, .login-card { box-shadow: none; }
 .op-card {
@@ -1304,14 +1299,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .empty-error .empty-icon { color: #b91c1c; background: #fee2e2; }
 .app-toolbar { background: #fafafa; border-color: #eeeeef; border-radius: 16px; }
 .search-field > svg { stroke: #71717a; }
-#app-search, .term-bar input { color: #18181b; background: #fff; border-color: #e4e4e7; }
 .chip { color: #71717a; background: #fff; border-color: #e4e4e7; border-radius: 10px; }
 .chip:hover { color: #18181b; border-color: #a1a1aa; }
 .chip.active { color: #fff; background: #18181b; border-color: #18181b; }
 .app-sec-title { color: #52525b; border-left-color: #18181b; }
 .app-count, .app-sec-count { color: #52525b; background: #f4f4f5; }
 
-.term-bar { background: #fafafa; border-color: #e4e4e7; }
 .term-wrap { background: #09090b; border-color: #27272a; }
 .console { left: 256px; background: #09090b; border-color: #27272a; box-shadow: 0 -12px 36px rgba(9,9,11,.14); }
 .console-head { color: #e4e4e7; background: #18181b; }
