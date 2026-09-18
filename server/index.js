@@ -302,7 +302,8 @@ wss.on('connection', (ws, req) => {
         const previousStream = shellStream;
         shellStream = null;
         if (previousStream) {
-          previousStream.removeAllListeners('close');
+          previousStream.removeAllListeners();
+          if (previousStream.stderr) previousStream.stderr.removeAllListeners();
           try { previousStream.close(); } catch (_) {}
         }
         try {
@@ -310,6 +311,7 @@ wss.on('connection', (ws, req) => {
           shellStream = nextStream;
           nextStream.on('data', (d) => send({ type: 'shell-data', data: d.toString('utf8') }));
           nextStream.stderr.on('data', (d) => send({ type: 'shell-data', data: d.toString('utf8') }));
+          nextStream.on('error', (e) => send({ type: 'shell-error', error: e.message }));
           nextStream.on('close', () => {
             if (shellStream !== nextStream) return;
             shellStream = null;
@@ -320,7 +322,9 @@ wss.on('connection', (ws, req) => {
           send({ type: 'shell-error', error: e.message });
         }
       } else if (msg.type === 'shell-input') {
-        if (shellStream) shellStream.write(msg.data);
+        if (shellStream) {
+          try { shellStream.write(msg.data); } catch (e) { send({ type: 'shell-error', error: e.message }); }
+        }
       } else if (msg.type === 'shell-resize') {
         if (shellStream) shellStream.setWindow(msg.rows, msg.cols, 0, 0);
       } else if (msg.type === 'shell-close') {

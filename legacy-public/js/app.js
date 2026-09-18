@@ -1110,7 +1110,7 @@ function renderTerminal() {
 }
 
 function closeTerminalSession() {
-  if (state.wsReady && state.ws && state.ws.readyState === WebSocket.OPEN && state.termOpen) {
+  if (state.wsReady && state.ws && state.ws.readyState === WebSocket.OPEN && (state.termOpen || state.termConnecting)) {
     state.ws.send(JSON.stringify({ type: 'shell-close' }));
   }
   state.termOpen = false;
