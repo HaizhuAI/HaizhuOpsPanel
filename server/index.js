@@ -38,6 +38,7 @@ const COOKIE_MAX_AGE = Math.floor(auth.TOKEN_TTL / 1000);
 
 const PORT = parseInt(process.env.PANEL_PORT || '8899', 10);
 const app = express();
+app.set('trust proxy', 1);
 app.use(express.json({ limit: '1mb' }));
 // 静态资源禁用强缓存（仅协商缓存/ETag），确保面板更新后浏览器立即拿到最新前端
 app.use(express.static(path.join(__dirname, '..', 'legacy-public'), {
@@ -57,7 +58,7 @@ app.post('/api/login', (req, res) => {
     return res.status(401).json({ ok: false, error: '用户名或密码错误' });
   }
   audit.write('auth.login', { actor: username || 'admin', ip: req.ip, result: 'success' });
-  const secure = req.secure || req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+  const secure = req.secure ? '; Secure' : '';
   res.setHeader('Set-Cookie', `ops_token=${encodeURIComponent(result.token)}; Path=/; HttpOnly${secure}; SameSite=Strict; Max-Age=${COOKIE_MAX_AGE}`);
   res.json({ ok: true, ...result });
 });
@@ -79,7 +80,7 @@ function requireAuth(req, res, next) {
 
 app.post('/api/logout', requireAuth, (req, res) => {
   auth.logout(req.token);
-  const secure = req.secure || req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+  const secure = req.secure ? '; Secure' : '';
   res.setHeader('Set-Cookie', `ops_token=; Path=/; HttpOnly${secure}; SameSite=Strict; Max-Age=0`);
   audit.write('auth.logout', { ip: req.ip, result: 'success' });
   res.json({ ok: true });
@@ -229,6 +230,7 @@ server.on('upgrade', (req, socket, head) => {
 });
 
 wss.on('connection', (ws, req) => {
+  const connectionToken = new URL(req.url, 'http://localhost').searchParams.get('token') || requestToken(req);
   // The HTTP upgrade request is only available when the connection event
   // explicitly receives it. Capture the address once so task handlers never
   // depend on an out-of-scope `req` reference.
@@ -241,6 +243,7 @@ wss.on('connection', (ws, req) => {
   };
 
   ws.on('message', async (raw) => {
+    if (!auth.verifyToken(connectionToken)) { ws.close(4001, 'Session expired'); return; }
     let msg;
     try { msg = JSON.parse(raw.toString()); } catch (_) { return; }
 
