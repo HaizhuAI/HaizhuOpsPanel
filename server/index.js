@@ -19,6 +19,7 @@ const apps = require('./apps');
 const audit = require('./audit');
 const ai = require('./ai');
 const mcpTools = require('./mcp-tools');
+const COOKIE_MAX_AGE = Math.floor(auth.TOKEN_TTL / 1000);
 
 // ---------- .env 轻量加载（无需 dotenv 依赖） ----------
 (function loadEnv() {
@@ -56,13 +57,16 @@ app.post('/api/login', (req, res) => {
     return res.status(401).json({ ok: false, error: '用户名或密码错误' });
   }
   audit.write('auth.login', { actor: username || 'admin', ip: req.ip, result: 'success' });
-  res.setHeader('Set-Cookie', `ops_token=${result.token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=86400`);
+  const secure = req.secure || req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+  res.setHeader('Set-Cookie', `ops_token=${encodeURIComponent(result.token)}; Path=/; HttpOnly${secure}; SameSite=Strict; Max-Age=${COOKIE_MAX_AGE}`);
   res.json({ ok: true, ...result });
 });
 
 function requestToken(req) {
   const match = (req.headers.cookie || '').match(/(?:^|;\s*)ops_token=([^;]+)/);
-  if (match) return decodeURIComponent(match[1]);
+  if (match) {
+    try { return decodeURIComponent(match[1]); } catch (_) { return ''; }
+  }
   return (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
 }
 
@@ -75,6 +79,8 @@ function requireAuth(req, res, next) {
 
 app.post('/api/logout', requireAuth, (req, res) => {
   auth.logout(req.token);
+  const secure = req.secure || req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+  res.setHeader('Set-Cookie', `ops_token=; Path=/; HttpOnly${secure}; SameSite=Strict; Max-Age=0`);
   audit.write('auth.logout', { ip: req.ip, result: 'success' });
   res.json({ ok: true });
 });
@@ -207,14 +213,19 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 
 server.on('upgrade', (req, socket, head) => {
-  const url = new URL(req.url, 'http://localhost');
-  const token = url.searchParams.get('token') || requestToken(req);
-  if (url.pathname !== '/ws' || !auth.verifyToken(token)) {
-    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+  try {
+    const url = new URL(req.url, 'http://localhost');
+    const token = url.searchParams.get('token') || requestToken(req);
+    if (url.pathname !== '/ws' || !auth.verifyToken(token)) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+  } catch (_) {
+    socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
     socket.destroy();
-    return;
   }
-  wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
 });
 
 wss.on('connection', (ws, req) => {
