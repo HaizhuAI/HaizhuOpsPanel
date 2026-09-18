@@ -56,11 +56,18 @@ app.post('/api/login', (req, res) => {
     return res.status(401).json({ ok: false, error: '用户名或密码错误' });
   }
   audit.write('auth.login', { actor: username || 'admin', ip: req.ip, result: 'success' });
+  res.setHeader('Set-Cookie', `ops_token=${result.token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=86400`);
   res.json({ ok: true, ...result });
 });
 
+function requestToken(req) {
+  const match = (req.headers.cookie || '').match(/(?:^|;\s*)ops_token=([^;]+)/);
+  if (match) return decodeURIComponent(match[1]);
+  return (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+}
+
 function requireAuth(req, res, next) {
-  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const token = requestToken(req);
   if (!auth.verifyToken(token)) return res.status(401).json({ ok: false, error: '未登录或会话已过期' });
   req.token = token;
   next();
@@ -201,7 +208,8 @@ const wss = new WebSocketServer({ noServer: true });
 
 server.on('upgrade', (req, socket, head) => {
   const url = new URL(req.url, 'http://localhost');
-  if (url.pathname !== '/ws' || !auth.verifyToken(url.searchParams.get('token'))) {
+  const token = url.searchParams.get('token') || requestToken(req);
+  if (url.pathname !== '/ws' || !auth.verifyToken(token)) {
     socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
     socket.destroy();
     return;

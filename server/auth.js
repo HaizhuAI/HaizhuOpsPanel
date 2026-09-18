@@ -12,8 +12,23 @@ const DATA_DIR = path.join(__dirname, '..', 'data');
 const AUTH_FILE = path.join(DATA_DIR, 'auth.json');
 const DEFAULT_PASSWORD = 'admin123';
 const TOKEN_TTL = 24 * 60 * 60 * 1000;
+const SESSION_KEY_FILE = path.join(DATA_DIR, 'session.key');
 
 const sessions = new Map(); // token -> expiresAt
+
+function sessionKey() {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  if (!fs.existsSync(SESSION_KEY_FILE)) {
+    fs.writeFileSync(SESSION_KEY_FILE, crypto.randomBytes(32), { mode: 0o600 });
+  }
+  return fs.readFileSync(SESSION_KEY_FILE);
+}
+
+function signedToken(expiresAt) {
+  const payload = `${expiresAt}.${crypto.randomBytes(24).toString('hex')}`;
+  const signature = crypto.createHmac('sha256', sessionKey()).update(payload).digest('hex');
+  return `${payload}.${signature}`;
+}
 
 function hashPassword(password, salt) {
   salt = salt || crypto.randomBytes(16).toString('hex');
@@ -47,20 +62,27 @@ function verifyPassword(password) {
 function login(username, password) {
   const conf = loadAuth();
   if (username !== conf.username || !verifyPassword(password)) return null;
-  const token = crypto.randomBytes(32).toString('hex');
-  sessions.set(token, Date.now() + TOKEN_TTL);
+  const expiresAt = Date.now() + TOKEN_TTL;
+  const token = signedToken(expiresAt);
+  sessions.set(token, expiresAt);
   return { token, mustChange: !!conf.mustChange };
 }
 
 function verifyToken(token) {
   if (!token) return false;
   const exp = sessions.get(token);
-  if (!exp) return false;
-  if (Date.now() > exp) {
-    sessions.delete(token);
-    return false;
+  if (exp) {
+    if (Date.now() > exp) { sessions.delete(token); return false; }
+    return true;
   }
-  return true;
+  const parts = String(token).split('.');
+  if (parts.length !== 3) return false;
+  const [expiresAt, nonce, signature] = parts;
+  const payload = `${expiresAt}.${nonce}`;
+  const expected = crypto.createHmac('sha256', sessionKey()).update(payload).digest('hex');
+  const a = Buffer.from(signature, 'hex');
+  const b = Buffer.from(expected, 'hex');
+  return Number(expiresAt) > Date.now() && a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
 function logout(token) {
