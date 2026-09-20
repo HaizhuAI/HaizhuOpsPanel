@@ -42,13 +42,18 @@ if (( failures < MAX_FAILURES )); then
 fi
 
 log "restarting $SERVICE_NAME after $failures consecutive failures"
-systemctl restart "$SERVICE_NAME"
-sleep 5
-if curl --fail --silent --show-error --max-time 10 "$APP_URL" >/dev/null; then
-  printf '0\n' > "$FAILURE_FILE"
-  log "service recovered after restart"
-  exit 0
+systemctl reset-failed "$SERVICE_NAME" >/dev/null 2>&1 || true
+if ! systemctl restart "$SERVICE_NAME"; then
+  log "restart command failed for $SERVICE_NAME"
+  exit 1
 fi
-
+for _ in $(seq 1 30); do
+  if curl --fail --silent --show-error --max-time 3 "$APP_URL" >/dev/null; then
+    printf '0\n' > "$FAILURE_FILE"
+    log "service recovered after restart"
+    exit 0
+  fi
+  sleep 1
+done
 log "service did not recover after restart"
 exit 1

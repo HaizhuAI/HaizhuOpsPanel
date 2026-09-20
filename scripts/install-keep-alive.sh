@@ -17,6 +17,8 @@ CONFIG_FILE="/etc/default/haizhu-opspanel"
 [[ -n "$NODE_BIN" && -x "$NODE_BIN" ]] || { echo "Node.js was not found. Set NODE_BIN to a Node.js 22+ executable." >&2; exit 1; }
 node_major="$($NODE_BIN -p 'Number(process.versions.node.split(".")[0])')"
 (( node_major >= 22 )) || { echo "Node.js 22 or newer is required." >&2; exit 1; }
+command -v ss >/dev/null || { echo "The ss command is required." >&2; exit 1; }
+command -v curl >/dev/null || { echo "The curl command is required." >&2; exit 1; }
 [[ -d "$REPO_DIR/node_modules" ]] || { echo "Install project dependencies in $REPO_DIR before running this installer." >&2; exit 1; }
 id "$RUN_USER" >/dev/null 2>&1 || { echo "User $RUN_USER does not exist." >&2; exit 1; }
 
@@ -29,13 +31,16 @@ fi
 install -d -o root -g root -m 0755 "$KEEP_ALIVE_DIR"
 install -o root -g root -m 0755 "$REPO_DIR/scripts/keep-alive.sh" "$KEEP_ALIVE_BIN"
 
-cat > "$CONFIG_FILE" <<EOF
+if [[ ! -e "$CONFIG_FILE" ]]; then
+  cat > "$CONFIG_FILE" <<EOF
+# Use shell-compatible KEY=value syntax because systemd and keep-alive.sh read this file.
 PANEL_PORT=$PANEL_PORT
 APP_URL=http://127.0.0.1:$PANEL_PORT/
 SERVICE_NAME=haizhu-opspanel.service
 MAX_FAILURES=3
 EOF
-chmod 0644 "$CONFIG_FILE"
+  chmod 0644 "$CONFIG_FILE"
+fi
 
 cat > /etc/systemd/system/haizhu-opspanel.service <<EOF
 [Unit]
