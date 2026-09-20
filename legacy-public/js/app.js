@@ -15,6 +15,7 @@ const state = {
   term: null,
   termFit: null,
   termOpen: false,
+  termConnecting: false,
   sysinfoTimer: null,
   appCatalog: null,
   installedApps: [],
@@ -124,9 +125,18 @@ function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${proto}://${location.host}/ws?token=${state.token}`);
   state.ws = ws;
-  ws.onopen = () => { state.wsReady = true; };
+  ws.onopen = () => {
+    state.wsReady = true;
+    if (state.view === 'terminal' && state.term) requestTerminalSession();
+  };
   ws.onclose = () => {
     state.wsReady = false;
+    state.termOpen = false;
+    state.termConnecting = false;
+    if (state.term && state.view === 'terminal') {
+      setTerminalStatus('连接已断开，正在自动重连...');
+      state.term.write('\r\n\x1b[33m[连接已断开，正在自动重连...]\x1b[0m\r\n');
+    }
     if (state.token) setTimeout(connectWS, 2500); // 自动重连
   };
   ws.onmessage = (e) => {
@@ -160,6 +170,9 @@ function handleWS(msg) {
       toast(msg.error, 'err');
       break;
     case 'shell-ready':
+      state.termConnecting = false;
+      state.termOpen = true;
+      setTerminalStatus('终端已连接，可直接输入命令', true);
       if (state.term) state.term.focus();
       if (state.pendingShellCmd) {
         const cmd = state.pendingShellCmd;
@@ -172,8 +185,17 @@ function handleWS(msg) {
     case 'shell-data':
       if (state.term) state.term.write(msg.data);
       break;
+    case 'shell-error':
+      state.termOpen = false;
+      state.termConnecting = false;
+      setTerminalStatus('终端连接失败，请点击重新连接');
+      if (state.term) state.term.write(`\r\n\x1b[31m[终端连接失败: ${msg.error}]\x1b[0m\r\n`);
+      toast(msg.error, 'err');
+      break;
     case 'shell-closed':
       state.termOpen = false;
+      state.termConnecting = false;
+      setTerminalStatus('终端已断开');
       if (state.term) state.term.write('\r\n\x1b[33m[会话已断开，点击「重新连接」恢复]\x1b[0m\r\n');
       break;
   }
@@ -328,7 +350,7 @@ function renderNav() {
     { sep: '运维操作' },
     ...state.catalog.categories,
     { sep: '高级' },
-    { id: 'terminal', name: '终端 / 自定义命令' },
+    { id: 'terminal', name: '交互式终端' },
   ];
   nav.innerHTML = items.map((it) => it.sep
     ? `<div class="nav-sep">${esc(it.sep)}</div>`
@@ -358,6 +380,8 @@ $('#btn-mobile-console').addEventListener('click', () => {
 });
 
 function switchView(view) {
+  const previousView = state.view;
+  if (previousView === 'terminal' && view !== 'terminal') closeTerminalSession();
   state.view = view;
   document.querySelectorAll('.nav-item').forEach((el) => {
     el.classList.toggle('active', el.dataset.view === view);
@@ -391,6 +415,7 @@ $('#host-select').addEventListener('change', (e) => {
   $('#host-status').className = 'host-status';
   if (state.view === 'dashboard') renderDashboard();
   else if (state.view === 'appstore') renderAppStore();
+  else if (state.view === 'terminal') renderTerminal();
 });
 
 function hostFormHTML(h = {}) {
@@ -1069,32 +1094,64 @@ function showAppForm(app) {
   });
 }
 
-/* ---------- 终端 / 自定义命令 ---------- */
+/* ---------- 交互式终端 ---------- */
 function renderTerminal() {
   const c = $('#content');
   c.innerHTML = `
-    <div class="page-head"><div><span class="page-eyebrow">SECURE SHELL</span><h1 class="page-title title-with-icon">${icon('terminal')}终端与命令</h1><p class="page-desc">建立交互式 SSH 会话，或执行单条命令并在审计控制台中查看输出。</p></div><span class="page-counter">加密通道</span></div>
-    <div class="term-bar">
-      <input id="raw-cmd" aria-label="Shell 命令" placeholder="输入 Shell 命令，例如：df -h">
-      <button class="btn btn-primary" id="btn-run-raw">${icon('play')}执行命令</button>
+    <div class="page-head"><div><span class="page-eyebrow">SECURE SHELL</span><h1 class="page-title title-with-icon">${icon('terminal')}交互式终端</h1><p class="page-desc">直接在下方终端光标处输入命令，按 Enter 执行；支持 Tab 补全、方向键历史与 Ctrl+C。</p></div><span class="page-counter">加密通道</span></div>
+    <div class="term-toolbar">
+      <span class="term-status" id="term-status"><span class="status-dot"></span>正在连接终端...</span>
       <button class="btn" id="btn-term-reconnect">${icon('refresh')}重新连接</button>
     </div>
-    <div class="term-wrap"><div id="terminal"></div></div>`;
-  const rawInput = $('#raw-cmd');
-  const doRaw = () => {
-    const cmd = rawInput.value.trim();
-    if (cmd) { runRaw(cmd); rawInput.value = ''; }
-  };
-  $('#btn-run-raw').addEventListener('click', doRaw);
-  rawInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doRaw(); });
-  $('#btn-term-reconnect').addEventListener('click', openTerminal);
+    <div class="term-wrap" id="term-wrap"><div id="terminal"></div></div>`;
+  $('#btn-term-reconnect').addEventListener('click', () => requestTerminalSession(true));
+  $('#term-wrap').addEventListener('click', () => { if (state.term) state.term.focus(); });
   openTerminal();
+}
+
+function closeTerminalSession() {
+  if (state.wsReady && state.ws && state.ws.readyState === WebSocket.OPEN && (state.termOpen || state.termConnecting)) {
+    state.ws.send(JSON.stringify({ type: 'shell-close' }));
+  }
+  state.termOpen = false;
+  state.termConnecting = false;
+  if (state.term) { try { state.term.dispose(); } catch (_) {} }
+  state.term = null;
+  state.termFit = null;
+}
+
+function setTerminalStatus(text, ready = false) {
+  const el = $('#term-status');
+  if (!el) return;
+  el.classList.toggle('is-ready', ready);
+  const textNode = Array.from(el.childNodes).find((node) => node.nodeType === Node.TEXT_NODE);
+  if (textNode) textNode.textContent = text;
+}
+
+function requestTerminalSession(force = false) {
+  if (!state.currentHost) { toast('请先添加并选择主机', 'err'); return; }
+  if (!state.term || !state.wsReady || !state.ws || state.ws.readyState !== WebSocket.OPEN) {
+    setTerminalStatus('等待安全连接...');
+    if (force) toast('连接尚未就绪，正在自动重连', 'err');
+    return;
+  }
+  if (state.termConnecting && !force) return;
+  state.termOpen = false;
+  state.termConnecting = true;
+  setTerminalStatus('正在连接终端...');
+  state.term.write(force ? '\r\n\x1b[36m[正在重新连接终端...]\x1b[0m\r\n' : '\x1b[36m[正在建立 SSH 终端...]\x1b[0m\r\n');
+  try {
+    state.ws.send(JSON.stringify({ type: 'shell-open', hostId: state.currentHost, cols: state.term.cols, rows: state.term.rows }));
+  } catch (_) {
+    state.termConnecting = false;
+    setTerminalStatus('终端连接失败，请重试');
+  }
 }
 
 function openTerminal() {
   if (!state.currentHost) { toast('请先添加并选择主机', 'err'); return; }
   if (!window.Terminal) {
-    $('#terminal').innerHTML = '<div style="color:var(--text-dim);padding:20px">终端组件(xterm.js)未能从 CDN 加载，请检查网络后刷新页面。仍可使用上方「自定义命令」功能。</div>';
+    $('#terminal').innerHTML = '<div style="color:var(--text-dim);padding:20px">终端组件(xterm.js)未能从 CDN 加载，请检查网络后刷新页面。</div>';
     return;
   }
   if (state.term) { try { state.term.dispose(); } catch (_) {} }
@@ -1102,6 +1159,8 @@ function openTerminal() {
     fontFamily: 'JetBrains Mono, Consolas, monospace',
     fontSize: 13,
     cursorBlink: true,
+    cursorStyle: 'bar',
+    scrollback: 5000,
     theme: { background: '#050b14', foreground: '#dbe7f3', cursor: '#34d399', selectionBackground: '#1f6f5f80' },
   });
   const fit = new (window.FitAddon.FitAddon)();
@@ -1110,15 +1169,25 @@ function openTerminal() {
   fit.fit();
   state.term = term;
   state.termFit = fit;
-  state.termOpen = true;
-  state.ws.send(JSON.stringify({ type: 'shell-open', hostId: state.currentHost, cols: term.cols, rows: term.rows }));
-  term.onData((d) => {
-    if (state.termOpen) state.ws.send(JSON.stringify({ type: 'shell-input', data: d }));
+  state.termOpen = false;
+  state.termConnecting = false;
+  term.onData((data) => {
+    if (!state.termOpen || !state.wsReady || !state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+    state.ws.send(JSON.stringify({ type: 'shell-input', data }));
   });
   term.onResize(({ cols, rows }) => {
-    if (state.termOpen) state.ws.send(JSON.stringify({ type: 'shell-resize', cols, rows }));
+    if (state.termOpen && state.wsReady && state.ws && state.ws.readyState === WebSocket.OPEN) {
+      state.ws.send(JSON.stringify({ type: 'shell-resize', cols, rows }));
+    }
   });
-  window.addEventListener('resize', () => { if (state.termFit) state.termFit.fit(); });
+  const observer = new ResizeObserver(() => {
+    if (!state.termFit || state.view !== 'terminal') return;
+    try { state.termFit.fit(); } catch (_) {}
+  });
+  observer.observe($('#term-wrap'));
+  term.onDispose(() => observer.disconnect());
+  term.focus();
+  requestTerminalSession();
 }
 
 /* ---------- 模态框 ---------- */

@@ -19,6 +19,7 @@ const apps = require('./apps');
 const audit = require('./audit');
 const ai = require('./ai');
 const mcpTools = require('./mcp-tools');
+const COOKIE_MAX_AGE = Math.floor(auth.TOKEN_TTL / 1000);
 
 // ---------- .env 轻量加载（无需 dotenv 依赖） ----------
 (function loadEnv() {
@@ -37,6 +38,7 @@ const mcpTools = require('./mcp-tools');
 
 const PORT = parseInt(process.env.PANEL_PORT || '8899', 10);
 const app = express();
+app.set('trust proxy', 1);
 app.use(express.json({ limit: '1mb' }));
 // 静态资源禁用强缓存（仅协商缓存/ETag），确保面板更新后浏览器立即拿到最新前端
 app.use(express.static(path.join(__dirname, '..', 'legacy-public'), {
@@ -56,11 +58,21 @@ app.post('/api/login', (req, res) => {
     return res.status(401).json({ ok: false, error: '用户名或密码错误' });
   }
   audit.write('auth.login', { actor: username || 'admin', ip: req.ip, result: 'success' });
+  const secure = req.secure ? '; Secure' : '';
+  res.setHeader('Set-Cookie', `ops_token=${encodeURIComponent(result.token)}; Path=/; HttpOnly${secure}; SameSite=Strict; Max-Age=${COOKIE_MAX_AGE}`);
   res.json({ ok: true, ...result });
 });
 
+function requestToken(req) {
+  const match = (req.headers.cookie || '').match(/(?:^|;\s*)ops_token=([^;]+)/);
+  if (match) {
+    try { return decodeURIComponent(match[1]); } catch (_) { return ''; }
+  }
+  return (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+}
+
 function requireAuth(req, res, next) {
-  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const token = requestToken(req);
   if (!auth.verifyToken(token)) return res.status(401).json({ ok: false, error: '未登录或会话已过期' });
   req.token = token;
   next();
@@ -68,6 +80,8 @@ function requireAuth(req, res, next) {
 
 app.post('/api/logout', requireAuth, (req, res) => {
   auth.logout(req.token);
+  const secure = req.secure ? '; Secure' : '';
+  res.setHeader('Set-Cookie', `ops_token=; Path=/; HttpOnly${secure}; SameSite=Strict; Max-Age=0`);
   audit.write('auth.logout', { ip: req.ip, result: 'success' });
   res.json({ ok: true });
 });
@@ -200,16 +214,23 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 
 server.on('upgrade', (req, socket, head) => {
-  const url = new URL(req.url, 'http://localhost');
-  if (url.pathname !== '/ws' || !auth.verifyToken(url.searchParams.get('token'))) {
-    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+  try {
+    const url = new URL(req.url, 'http://localhost');
+    const token = url.searchParams.get('token') || requestToken(req);
+    if (url.pathname !== '/ws' || !auth.verifyToken(token)) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+  } catch (_) {
+    socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
     socket.destroy();
-    return;
   }
-  wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
 });
 
 wss.on('connection', (ws, req) => {
+  const connectionToken = new URL(req.url, 'http://localhost').searchParams.get('token') || requestToken(req);
   // The HTTP upgrade request is only available when the connection event
   // explicitly receives it. Capture the address once so task handlers never
   // depend on an out-of-scope `req` reference.
@@ -222,6 +243,7 @@ wss.on('connection', (ws, req) => {
   };
 
   ws.on('message', async (raw) => {
+    if (!auth.verifyToken(connectionToken)) { ws.close(4001, 'Session expired'); return; }
     let msg;
     try { msg = JSON.parse(raw.toString()); } catch (_) { return; }
 
@@ -277,17 +299,32 @@ wss.on('connection', (ws, req) => {
 
       // 交互式终端
       else if (msg.type === 'shell-open') {
-        if (shellStream) { try { shellStream.close(); } catch (_) {} }
-        shellStream = await ssh.shell(msg.hostId, { cols: msg.cols, rows: msg.rows });
-        shellStream.on('data', (d) => send({ type: 'shell-data', data: d.toString('utf8') }));
-        shellStream.stderr.on('data', (d) => send({ type: 'shell-data', data: d.toString('utf8') }));
-        shellStream.on('close', () => {
-          shellStream = null;
-          send({ type: 'shell-closed' });
-        });
-        send({ type: 'shell-ready' });
+        const previousStream = shellStream;
+        shellStream = null;
+        if (previousStream) {
+          previousStream.removeAllListeners();
+          if (previousStream.stderr) previousStream.stderr.removeAllListeners();
+          try { previousStream.close(); } catch (_) {}
+        }
+        try {
+          const nextStream = await ssh.shell(msg.hostId, { cols: msg.cols, rows: msg.rows });
+          shellStream = nextStream;
+          nextStream.on('data', (d) => send({ type: 'shell-data', data: d.toString('utf8') }));
+          nextStream.stderr.on('data', (d) => send({ type: 'shell-data', data: d.toString('utf8') }));
+          nextStream.on('error', (e) => send({ type: 'shell-error', error: e.message }));
+          nextStream.on('close', () => {
+            if (shellStream !== nextStream) return;
+            shellStream = null;
+            send({ type: 'shell-closed' });
+          });
+          send({ type: 'shell-ready' });
+        } catch (e) {
+          send({ type: 'shell-error', error: e.message });
+        }
       } else if (msg.type === 'shell-input') {
-        if (shellStream) shellStream.write(msg.data);
+        if (shellStream) {
+          try { shellStream.write(msg.data); } catch (e) { send({ type: 'shell-error', error: e.message }); }
+        }
       } else if (msg.type === 'shell-resize') {
         if (shellStream) shellStream.setWindow(msg.rows, msg.cols, 0, 0);
       } else if (msg.type === 'shell-close') {

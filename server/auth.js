@@ -2,7 +2,7 @@
  * 认证模块
  * - 管理员账号: admin，默认密码: admin123（首次启动自动初始化）
  * - 密码使用 scrypt 加盐哈希存储于 data/auth.json
- * - 登录成功签发随机 token（内存会话，24 小时有效）
+ * - 登录成功签发随机 token（持久化会话，24 小时有效）
  */
 const crypto = require('crypto');
 const fs = require('fs');
@@ -10,10 +10,9 @@ const path = require('path');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const AUTH_FILE = path.join(DATA_DIR, 'auth.json');
+const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 const DEFAULT_PASSWORD = 'admin123';
 const TOKEN_TTL = 24 * 60 * 60 * 1000;
-
-const sessions = new Map(); // token -> expiresAt
 
 function hashPassword(password, salt) {
   salt = salt || crypto.randomBytes(16).toString('hex');
@@ -36,6 +35,28 @@ function saveAuth(conf) {
   fs.writeFileSync(AUTH_FILE, JSON.stringify(conf, null, 2));
 }
 
+function loadSessions() {
+  if (!fs.existsSync(SESSIONS_FILE)) return {};
+  try { return JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8')); } catch (_) { return {}; }
+}
+
+function saveSessions(sessions) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(SESSIONS_FILE, JSON.stringify(sessions), { mode: 0o600 });
+}
+
+function pruneSessions(sessions) {
+  const now = Date.now();
+  let changed = false;
+  for (const [token, expiresAt] of Object.entries(sessions)) {
+    if (!Number.isFinite(expiresAt) || now > expiresAt) {
+      delete sessions[token];
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 function verifyPassword(password) {
   const conf = loadAuth();
   const { hash } = hashPassword(password, conf.salt);
@@ -48,23 +69,27 @@ function login(username, password) {
   const conf = loadAuth();
   if (username !== conf.username || !verifyPassword(password)) return null;
   const token = crypto.randomBytes(32).toString('hex');
-  sessions.set(token, Date.now() + TOKEN_TTL);
+  const sessions = loadSessions();
+  pruneSessions(sessions);
+  sessions[token] = Date.now() + TOKEN_TTL;
+  saveSessions(sessions);
   return { token, mustChange: !!conf.mustChange };
 }
 
 function verifyToken(token) {
   if (!token) return false;
-  const exp = sessions.get(token);
-  if (!exp) return false;
-  if (Date.now() > exp) {
-    sessions.delete(token);
-    return false;
-  }
-  return true;
+  const sessions = loadSessions();
+  const changed = pruneSessions(sessions);
+  if (changed) saveSessions(sessions);
+  return Number.isFinite(sessions[token]) && Date.now() <= sessions[token];
 }
 
 function logout(token) {
-  sessions.delete(token);
+  const sessions = loadSessions();
+  if (token in sessions) {
+    delete sessions[token];
+    saveSessions(sessions);
+  }
 }
 
 function changePassword(oldPassword, newPassword) {
@@ -77,13 +102,13 @@ function changePassword(oldPassword, newPassword) {
   conf.hash = hash;
   conf.mustChange = false;
   saveAuth(conf);
+  saveSessions({});
   return { ok: true };
 }
 
-// 定期清理过期会话
 setInterval(() => {
-  const now = Date.now();
-  for (const [t, exp] of sessions) if (now > exp) sessions.delete(t);
+  const sessions = loadSessions();
+  if (pruneSessions(sessions)) saveSessions(sessions);
 }, 60 * 1000).unref();
 
-module.exports = { login, logout, verifyToken, changePassword, loadAuth, DEFAULT_PASSWORD };
+module.exports = { login, logout, verifyToken, changePassword, loadAuth, DEFAULT_PASSWORD, TOKEN_TTL };
